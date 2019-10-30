@@ -1,5 +1,7 @@
 package jsvm;
 
+import java.util.Arrays;
+
 import static jsvm.KernelType.RBF;
 import static jsvm.SVMType.C_SVC;
 
@@ -48,6 +50,25 @@ public class SVMParameter implements Cloneable, java.io.Serializable
      * whether to train a SVC or SVR model for probability estimates, 0 or 1 (default 0)
      */
     public int probability;
+
+    public SVMParameter(SVMParameter parameter)
+    {
+        this.svmType = parameter.svmType;
+        this.kernelType = parameter.kernelType;
+        this.degree = parameter.degree;
+        this.gamma = parameter.gamma;
+        this.coef0 = parameter.coef0;
+        this.cacheSize = parameter.cacheSize;
+        this.eps = parameter.eps;
+        this.C = parameter.C;
+        this.nrWeight = parameter.nrWeight;
+        this.weightLabel = Arrays.copyOf(parameter.weightLabel, parameter.weightLabel.length);
+        this.weight = Arrays.copyOf(parameter.weight, parameter.weight.length);
+        this.nu = parameter.nu;
+        this.p = parameter.p;
+        this.shrinking = parameter.shrinking;
+        this.probability = parameter.probability;
+    }
 
     public SVMParameter()
     {

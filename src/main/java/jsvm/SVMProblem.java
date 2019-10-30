@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -19,12 +20,22 @@ import static java.util.Objects.requireNonNull;
  */
 public class SVMProblem implements java.io.Serializable
 {
+    public static final String SPLITTER = "[ \t\n\r\f:]";
+
     public int l;
     public double[] y;
     public SVMNode[][] x;
     private int maxIndex;
+    private int size;
 
     public SVMProblem() { }
+
+    public static void main(String[] args)
+    {
+        Path path = Paths.get("D:\\data\\datasets\\train.2");
+        SVMProblem problem = new SVMProblem(path);
+        System.out.println(problem.getMaxIndex());
+    }
 
     /**
      * Construct with a file
@@ -45,11 +56,11 @@ public class SVMProblem implements java.io.Serializable
             String line;
             while ((line = reader.readLine()) != null) {
 
-//                System.out.println(line);
-                StringTokenizer st = new StringTokenizer(line, " \t\n\r\f:");
+                StringTokenizer st = new StringTokenizer(line, SPLITTER);
                 vy.add(Double.parseDouble(st.nextToken()));
 
                 int m = st.countTokens() / 2;
+                size += m;
                 SVMNode[] x = new SVMNode[m];
                 for (int j = 0; j < m; j++) {
                     x[j] = new SVMNode(Integer.parseInt(st.nextToken()), Double.parseDouble(st.nextToken()));
@@ -64,7 +75,6 @@ public class SVMProblem implements java.io.Serializable
         }
 
         this.l = vy.size();
-
         this.x = new SVMNode[l][];
         for (int i = 0; i < l; i++) {
             x[i] = vx.get(i);
@@ -73,6 +83,24 @@ public class SVMProblem implements java.io.Serializable
         for (int i = 0; i < l; i++) {
             y[i] = vy.get(i);
         }
+    }
+
+    /**
+     * @return number of points in this dataset.
+     */
+    public int size()
+    {
+        return size;
+    }
+
+    public double[] getY()
+    {
+        return y;
+    }
+
+    public SVMNode[][] getX()
+    {
+        return x;
     }
 
     public int getMaxIndex()

@@ -222,7 +222,7 @@ abstract class Kernel extends QMatrix
         this.gamma = param.gamma;
         this.coef0 = param.coef0;
 
-        x = (SVMNode[][]) x_.clone();
+        x = x_.clone();
 
         if (kernel_type == RBF) {
             x_square = new double[l];
@@ -1762,7 +1762,7 @@ public class SVM
 
         SVMParameter newparam = (SVMParameter) param.clone();
         newparam.probability = 0;
-        svm_cross_validation(prob, newparam, nr_fold, ymv);
+        crossValidation(prob, newparam, nr_fold, ymv);
         for (i = 0; i < prob.l; i++) {
             ymv[i] = prob.y[i] - ymv[i];
             mae += Math.abs(ymv[i]);
@@ -1783,7 +1783,7 @@ public class SVM
 
     // label: label name, start: begin of each class, count: #data of classes, perm: indices to the original data
     // perm, length l, must be allocated before calling this subroutine
-    private static void svm_group_classes(SVMProblem prob, int[] nr_class_ret, int[][] label_ret, int[][] start_ret, int[][] count_ret, int[] perm)
+    private static void groupClasses(SVMProblem prob, int[] nr_class_ret, int[][] label_ret, int[][] start_ret, int[][] count_ret, int[] perm)
     {
         int l = prob.l;
         int max_nr_class = 16;
@@ -1862,7 +1862,7 @@ public class SVM
     }
 
     /**
-     * Train a model of givinn dataset and parameter.
+     * Train a model of given dataset and parameter.
      *
      * @param prob
      * @param param
@@ -1921,7 +1921,7 @@ public class SVM
             int[] perm = new int[l];
 
             // group training data of the same class
-            svm_group_classes(prob, tmp_nr_class, tmp_label, tmp_start, tmp_count, perm);
+            groupClasses(prob, tmp_nr_class, tmp_label, tmp_start, tmp_count, perm);
             int nr_class = tmp_nr_class[0];
             int[] label = tmp_label[0];
             int[] start = tmp_start[0];
@@ -2086,8 +2086,15 @@ public class SVM
         return model;
     }
 
-    // Stratified cross validation
-    public static void svm_cross_validation(SVMProblem prob, SVMParameter param, int nr_fold, double[] target)
+    /**
+     * Stratified cross validation
+     *
+     * @param prob    {@link SVMProblem} of the dataset
+     * @param param   {@link SVMParameter}
+     * @param nr_fold number of fold
+     * @param target  array to store predicted target
+     */
+    public static void crossValidation(SVMProblem prob, SVMParameter param, int nr_fold, double[] target)
     {
         int i;
         int[] fold_start = new int[nr_fold + 1];
@@ -2103,7 +2110,7 @@ public class SVM
             int[][] tmp_start = new int[1][];
             int[][] tmp_count = new int[1][];
 
-            svm_group_classes(prob, tmp_nr_class, tmp_label, tmp_start, tmp_count, perm);
+            groupClasses(prob, tmp_nr_class, tmp_label, tmp_start, tmp_count, perm);
 
             int nr_class = tmp_nr_class[0];
             int[] start = tmp_start[0];
@@ -2183,52 +2190,12 @@ public class SVM
             if (param.probability == 1 &&
                     (param.svmType == C_SVC ||
                             param.svmType == NU_SVC)) {
-                double[] prob_estimates = new double[svm_get_nr_class(submodel)];
+                double[] prob_estimates = new double[submodel.nrClass];
                 for (j = begin; j < end; j++)
                     target[perm[j]] = predictProbability(submodel, prob.x[perm[j]], prob_estimates);
             } else
                 for (j = begin; j < end; j++)
-                    target[perm[j]] = svm_predict(submodel, prob.x[perm[j]]);
-        }
-    }
-
-    public static SVMType getSVMType(SVMModel model)
-    {
-        return model.param.svmType;
-    }
-
-    public static int svm_get_nr_class(SVMModel model)
-    {
-        return model.nrClass;
-    }
-
-    public static void svm_get_labels(SVMModel model, int[] label)
-    {
-        if (model.label != null)
-            for (int i = 0; i < model.nrClass; i++)
-                label[i] = model.label[i];
-    }
-
-    public static void svm_get_sv_indices(SVMModel model, int[] indices)
-    {
-        if (model.sv_indices != null)
-            for (int i = 0; i < model.l; i++)
-                indices[i] = model.sv_indices[i];
-    }
-
-    public static int svm_get_nr_sv(SVMModel model)
-    {
-        return model.l;
-    }
-
-    public static double svm_get_svr_probability(SVMModel model)
-    {
-        if ((model.param.svmType == EPSILON_SVR || model.param.svmType == NU_SVR) &&
-                model.probA != null)
-            return model.probA[0];
-        else {
-            System.err.print("Model doesn't contain information for SVR probability inference\n");
-            return 0;
+                    target[perm[j]] = predict(submodel, prob.x[perm[j]]);
         }
     }
 
@@ -2301,7 +2268,7 @@ public class SVM
         }
     }
 
-    public static double svm_predict(SVMModel model, SVMNode[] x)
+    public static double predict(SVMModel model, SVMNode[] x)
     {
         int nr_class = model.nrClass;
         double[] dec_values;
@@ -2346,7 +2313,7 @@ public class SVM
                     prob_max_idx = i;
             return model.label[prob_max_idx];
         } else
-            return svm_predict(model, x);
+            return predict(model, x);
     }
 
     public static void saveModel(String modelFileName, SVMModel model) throws IOException
@@ -2594,7 +2561,6 @@ public class SVM
             return "unknown svm type";
 
         // kernel_type, degree
-
         KernelType kernel_type = param.kernelType;
         if (kernel_type != LINEAR &&
                 kernel_type != POLY &&
@@ -2648,7 +2614,6 @@ public class SVM
             return "one-class SVM probability output not supported yet";
 
         // check whether nu-svc is feasible
-
         if (svm_type == NU_SVC) {
             int l = prob.l;
             int max_nr_class = 16;

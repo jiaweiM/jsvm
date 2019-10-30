@@ -39,6 +39,18 @@ public class SVMPredict
     }
 
     /**
+     * Predict default without probability.
+     *
+     * @param testFile  the data file
+     * @param modelFile the model file
+     * @throws IOException for data file IO exception.
+     */
+    public static void predict(String testFile, String modelFile) throws IOException
+    {
+        predict(testFile, modelFile, false);
+    }
+
+    /**
      * Predict
      *
      * @param testFile           the data file
@@ -82,10 +94,9 @@ public class SVMPredict
         double[] probEstimates = null;
         if (predictProbability) {
             if (svmType == EPSILON_SVR || svmType == NU_SVR) {
-                info("Prob. model for test data: target value = predicted value + z,\nz: Laplace distribution e^(-|z|/sigma)/(2sigma),sigma=" + SVM.svm_get_svr_probability(model) + "\n");
+                info("Prob. model for test data: target value = predicted value + z,\nz: Laplace distribution e^(-|z|/sigma)/(2sigma),sigma=" + model.getSVRProbability() + "\n");
             } else {
-                int[] labels = new int[nrClass];
-                SVM.svm_get_labels(model, labels);
+                int[] labels = model.getLabels();
                 probEstimates = new double[nrClass];
                 output.writeBytes("labels");
                 for (int j = 0; j < nrClass; j++)
@@ -118,7 +129,7 @@ public class SVMPredict
                     output.writeBytes(probEstimates[j] + " ");
                 output.writeBytes("\n");
             } else {
-                predict_label = SVM.svm_predict(model, x);
+                predict_label = SVM.predict(model, x);
                 output.writeBytes(predict_label + "\n");
             }
 

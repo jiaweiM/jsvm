@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.nio.file.Paths;
 
 import static jsvm.KernelType.PRECOMPUTED;
-import static jsvm.KernelType.RBF;
-import static jsvm.SVMType.*;
+import static jsvm.SVMType.EPSILON_SVR;
+import static jsvm.SVMType.NU_SVR;
 
 
 /**
@@ -31,6 +31,11 @@ public class SVMTrain
         this(inputFileName, new SVMParameter(), false, 0);
     }
 
+    public SVMTrain(String inputFileName, SVMParameter parameter)
+    {
+        this(inputFileName, parameter, false, 0);
+    }
+
     public SVMTrain(String inputFileName, SVMParameter parameter, boolean crossValidation, int nrFold)
     {
         this.inputFileName = inputFileName;
@@ -50,64 +55,25 @@ public class SVMTrain
         this.nrFold = nrFold;
     }
 
+    public void setC(double c)
+    {
+        parameter.setC(c);
+    }
+
+    public void setG(double g)
+    {
+        parameter.setGamma(g);
+    }
+
     public String getModelFileName()
     {
         return modelFileName;
     }
 
-    public SVMTrain(String[] args) throws IOException
-    {
-        parameter = new SVMParameter();
-        parameter.svmType = C_SVC;
-        parameter.kernelType = RBF;
-        parameter.degree = 3; // degree in kernel function
-        parameter.gamma = 0;    // 1/num_features
-        parameter.coef0 = 0; // coef0
-        parameter.nu = 0.5; // nu of nu-SVC, one-class SVM, and nu-SVR (default 0.5)
-        parameter.cacheSize = 100; // cache memory size in MB (default 100)
-        parameter.C = 1; // C of C-SVC,epsilon-SVR,nu-SVR
-        parameter.eps = 1e-3; // tolerance of termination criterion (default 0.001)
-        parameter.p = 0.1; // the epsilon in loss function of epsilon-SVR (default 0.1)
-        parameter.shrinking = 1; // whether to use the shrinking heuristics, 0 or 1 (default 1)
-        parameter.probability = 0; // whether to train a SVC or SVR model for probability estimates, 0 or 1 (default 0)
-        parameter.nrWeight = 0; // set the parameter C of class i to weight*C, for C-SVC (default 1)
-        parameter.weightLabel = new int[0]; //
-        parameter.weight = new double[0]; // n-fold cross validation mode
-        crossValidation = false;
-
-        parseCMD(args);
-        this.problem = new SVMProblem(Paths.get(inputFileName));
-        if (parameter.gamma == 0 && problem.getMaxIndex() > 0) {
-            parameter.gamma = 1.0 / problem.getMaxIndex();
-        }
-        if (parameter.kernelType == PRECOMPUTED) {
-            for (int i = 0; i < problem.l; i++) {
-                if (problem.x[i][0].index != 0) {
-                    System.err.print("Wrong kernel matrix: first column must be 0:sample_serial_number\n");
-                    System.exit(1);
-                }
-                if ((int) problem.x[i][0].value <= 0 || (int) problem.x[i][0].value > problem.getMaxIndex()) {
-                    System.err.print("Wrong input format: sample_serial_number out of range\n");
-                    System.exit(1);
-                }
-            }
-        }
-
-        errorMsg = SVM.checkParameter(problem, parameter);
-        if (errorMsg != null) {
-            System.err.print("ERROR: " + errorMsg + "\n");
-            System.exit(1);
-        }
-
-        if (crossValidation) {
-            do_cross_validation();
-        } else {
-            model = SVM.train(problem, parameter);
-            SVM.saveModel(modelFileName, model);
-        }
-    }
-
-    public void train() throws IOException
+    /**
+     * do the train action, if cross-validation is done, it accuracy and corrent count is return.
+     */
+    public Pair<Double, Double> train() throws IOException
     {
         this.problem = new SVMProblem(Paths.get(inputFileName));
         if (parameter.gamma == 0 && problem.getMaxIndex() > 0) {
@@ -133,10 +99,11 @@ public class SVMTrain
         }
 
         if (crossValidation) {
-            do_cross_validation();
+            return doCrossValidation();
         } else {
             model = SVM.train(problem, parameter);
             SVM.saveModel(modelFileName, model);
+            return Pair.create(0., 0.);
         }
     }
 
@@ -160,10 +127,9 @@ public class SVMTrain
         this.crossValidation = crossValidation;
     }
 
-    private static void run(String[] args)
+    private static void run(String[] args) throws IOException
     {
         SVMParameter parameter = new SVMParameter();
-
         boolean crossValidation = false;
         int nrFold = 0;
         ISVMPrint printFunc = null;
@@ -258,27 +224,27 @@ public class SVMTrain
         }
 
         SVMTrain train = new SVMTrain(inputFileName, modelFileName, parameter, crossValidation, nrFold);
-
+        train.train();
     }
 
     public static void main(String[] args) throws IOException
     {
         run(args);
-//        new SVMTrain(args);
     }
 
-    private void do_cross_validation()
+    /**
+     * for EPSILON_SVR and NU_SVR, return the (Cross validation mean squared error, Squared correlation coefficient),
+     * otherwise, return (Cross validation accuracy, total corrent).
+     */
+    private Pair<Double, Double> doCrossValidation()
     {
-        int i;
-        int total_correct = 0;
-        double total_error = 0;
-        double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
         double[] target = new double[problem.l];
+        SVM.crossValidation(problem, parameter, nrFold, target);
 
-        SVM.svm_cross_validation(problem, parameter, nrFold, target);
-        if (parameter.svmType == EPSILON_SVR ||
-                parameter.svmType == NU_SVR) {
-            for (i = 0; i < problem.l; i++) {
+        if (parameter.svmType == EPSILON_SVR || parameter.svmType == NU_SVR) {
+            double total_error = 0;
+            double sumv = 0, sumy = 0, sumvv = 0, sumyy = 0, sumvy = 0;
+            for (int i = 0; i < problem.l; i++) {
                 double y = problem.y[i];
                 double v = target[i];
                 total_error += (v - y) * (v - y);
@@ -288,16 +254,26 @@ public class SVMTrain
                 sumyy += y * y;
                 sumvy += v * y;
             }
-            System.out.print("Cross Validation Mean squared error = " + total_error / problem.l + "\n");
-            System.out.print("Cross Validation Squared correlation coefficient = " +
-                    ((problem.l * sumvy - sumv * sumy) * (problem.l * sumvy - sumv * sumy)) /
-                            ((problem.l * sumvv - sumv * sumv) * (problem.l * sumyy - sumy * sumy)) + "\n"
-            );
+
+            double meanSquareError = total_error / problem.l;
+            double coefficient = ((problem.l * sumvy - sumv * sumy) * (problem.l * sumvy - sumv * sumy)) /
+                    ((problem.l * sumvv - sumv * sumv) * (problem.l * sumyy - sumy * sumy));
+
+            System.out.println("Cross Validation Mean squared error = " + meanSquareError);
+            System.out.println("Cross Validation Squared correlation coefficient = " + coefficient);
+
+            return Pair.create(meanSquareError, coefficient);
         } else {
-            for (i = 0; i < problem.l; i++)
+            int total_correct = 0;
+            for (int i = 0; i < problem.l; i++) {
                 if (target[i] == problem.y[i])
                     ++total_correct;
-            System.out.print("Cross Validation Accuracy = " + 100.0 * total_correct / problem.l + "%\n");
+            }
+
+            double accuracy = 100.0 * total_correct / problem.l;
+            System.out.println("Cross Validation Accuracy = " + accuracy + "%");
+
+            return Pair.create(accuracy, total_correct * 1.);
         }
     }
 
@@ -309,102 +285,6 @@ public class SVMTrain
             System.exit(1);
         }
         return (d);
-    }
-
-    private void parseCMD(String[] args)
-    {
-        ISVMPrint printFunc = null;
-        int i;
-        for (i = 0; i < args.length; i++) {
-            if (args[i].charAt(0) != '-') break;
-
-            if (++i >= args.length)
-                exitWithHelp();
-
-            switch (args[i - 1].charAt(1)) {
-                case 's':
-                    parameter.svmType = SVMType.ofIndex(Integer.parseInt(args[i]));
-                    break;
-                case 't':
-                    parameter.kernelType = KernelType.ofIndex(Integer.parseInt(args[i]));
-                    break;
-                case 'd':
-                    parameter.degree = Integer.parseInt(args[i]);
-                    break;
-                case 'g':
-                    parameter.gamma = atof(args[i]);
-                    break;
-                case 'r':
-                    parameter.coef0 = atof(args[i]);
-                    break;
-                case 'n':
-                    parameter.nu = atof(args[i]);
-                    break;
-                case 'm':
-                    parameter.cacheSize = atof(args[i]);
-                    break;
-                case 'c':
-                    parameter.C = atof(args[i]);
-                    break;
-                case 'e':
-                    parameter.eps = atof(args[i]);
-                    break;
-                case 'p':
-                    parameter.p = atof(args[i]);
-                    break;
-                case 'h':
-                    parameter.shrinking = Integer.parseInt(args[i]);
-                    break;
-                case 'b':
-                    parameter.probability = Integer.parseInt(args[i]);
-                    break;
-                case 'q':
-                    printFunc = NO_PRINT;
-                    i--;
-                    break;
-                case 'v':
-                    crossValidation = true;
-                    nrFold = Integer.parseInt(args[i]);
-                    if (nrFold < 2) {
-                        System.err.print("n-fold cross validation: n must >= 2\n");
-                        exitWithHelp();
-                    }
-                    break;
-                case 'w':
-                    ++parameter.nrWeight;
-                {
-                    int[] old = parameter.weightLabel;
-                    parameter.weightLabel = new int[parameter.nrWeight];
-                    System.arraycopy(old, 0, parameter.weightLabel, 0, parameter.nrWeight - 1);
-                }
-                {
-                    double[] old = parameter.weight;
-                    parameter.weight = new double[parameter.nrWeight];
-                    System.arraycopy(old, 0, parameter.weight, 0, parameter.nrWeight - 1);
-                }
-                parameter.weightLabel[parameter.nrWeight - 1] = Integer.parseInt(args[i - 1].substring(2));
-                parameter.weight[parameter.nrWeight - 1] = atof(args[i]);
-                break;
-                default:
-                    System.err.print("Unknown option: " + args[i - 1] + "\n");
-                    exitWithHelp();
-            }
-        }
-
-        SVM.setPrintFunc(printFunc);
-
-        if (i >= args.length)
-            exitWithHelp();
-
-        inputFileName = args[i];
-
-        if (i < args.length - 1)
-            modelFileName = args[i + 1];
-        else {
-            int p = args[i].lastIndexOf('/');
-            ++p;    // whew...
-            modelFileName = args[i].substring(p) + ".model";
-        }
     }
 
     private static void exitWithHelp()

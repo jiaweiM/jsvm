@@ -1,5 +1,10 @@
 package jsvm;
 
+import java.util.Arrays;
+
+import static jsvm.SVMType.EPSILON_SVR;
+import static jsvm.SVMType.NU_SVR;
+
 public class SVMModel implements java.io.Serializable
 {
     public SVMParameter param;    // parameter
@@ -29,5 +34,46 @@ public class SVMModel implements java.io.Serializable
     public int getNrClass()
     {
         return nrClass;
+    }
+
+    /**
+     * @return the indices of support vectors.
+     */
+    public int[] getSVIndices()
+    {
+        if (sv_indices != null)
+            return Arrays.copyOf(sv_indices, l);
+        return new int[0];
+    }
+
+    /**
+     * @return number of support vector.s
+     */
+    public int getNumberOfSV()
+    {
+        return l;
+    }
+
+    /**
+     * @return the probability of SVR
+     */
+    public double getSVRProbability()
+    {
+        if ((param.svmType == EPSILON_SVR || param.svmType == NU_SVR) && probA != null)
+            return probA[0];
+        else {
+            System.err.print("Model doesn't contain information for SVR probability inference\n");
+            return 0;
+        }
+    }
+
+    /**
+     * @return labels of this model, return an empty array if these is no labels in this model.
+     */
+    public int[] getLabels()
+    {
+        if (label != null)
+            return Arrays.copyOf(label, nrClass);
+        return new int[0];
     }
 }

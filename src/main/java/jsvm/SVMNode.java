@@ -25,4 +25,20 @@ public class SVMNode implements java.io.Serializable
         this.index = index;
         this.value = value;
     }
+
+    /**
+     * @return the index of the point.
+     */
+    public int getIndex()
+    {
+        return index;
+    }
+
+    /**
+     * @return the value of the point.
+     */
+    public double getValue()
+    {
+        return value;
+    }
 }

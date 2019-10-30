@@ -1,9 +1,6 @@
 package jsvm;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Formatter;
@@ -17,8 +14,6 @@ import java.util.Formatter;
  */
 public class SVMScale
 {
-    private static final String SPLIT = "[ \t\n\r\f:]";
-
     /**
      * x scaling lower limit (default -1)
      */
@@ -59,6 +54,14 @@ public class SVMScale
                         + "-r restore_filename : restore scaling parameters from restore_filename\n"
         );
         System.exit(1);
+    }
+
+    /**
+     * @return max index in the dataset.
+     */
+    public int getMaxIndex()
+    {
+        return maxIndex;
     }
 
     /**
@@ -111,11 +114,16 @@ public class SVMScale
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] values = line.split(SPLIT);
-                for (int i = 1; i <= values.length - 2; i += 2) {
+                String[] values = line.trim().split(SVMProblem.SPLITTER);
+                for (int i = 1; i < values.length; i++) {
+                    String value = values[i];
+                    if (value.trim().isEmpty()) {
+                        continue;
+                    }
                     int index = Integer.parseInt(values[i]);
                     maxIndex = Math.max(maxIndex, index);
                     numNonzeros++;
+                    i++;
                 }
             }
         } catch (IOException e) {
@@ -141,7 +149,7 @@ public class SVMScale
 
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] values = line.split(SPLIT);
+                String[] values = line.split(SVMProblem.SPLITTER);
                 int index = Integer.parseInt(values[0]);
                 this.maxIndex = Math.max(maxIndex, index);
             }
@@ -155,14 +163,17 @@ public class SVMScale
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] values = line.split(SPLIT);
+                String[] values = line.trim().split(SVMProblem.SPLITTER);
 
                 double target = Double.parseDouble(values[0]);
                 yMax = Math.max(yMax, target);
                 yMin = Math.min(yMin, target);
 
                 int nextIndex = 1;
-                for (int i = 1; i <= values.length - 2; i += 2) {
+                for (int i = 1; i < values.length; i++) {
+                    if (values[i].trim().isEmpty())
+                        continue;
+
                     int index = Integer.parseInt(values[i]);
                     double value = Double.parseDouble(values[i + 1]);
 
@@ -173,6 +184,7 @@ public class SVMScale
                     featureMax[index] = Math.max(featureMax[index], value);
                     featureMin[index] = Math.min(featureMin[index], value);
                     nextIndex = index + 1;
+                    i++;
                 }
                 for (int j = nextIndex; j <= maxIndex; j++) {
                     featureMax[j] = Math.max(featureMax[j], 0);
@@ -196,7 +208,7 @@ public class SVMScale
             if (reader.read() == 'y') {
                 reader.readLine(); // skip '\n' after 'y'
                 String line = reader.readLine();
-                String[] lowerUpper = line.split(SPLIT);
+                String[] lowerUpper = line.split(SVMProblem.SPLITTER);
                 yLower = Double.parseDouble(lowerUpper[0]);
                 yUpper = Double.parseDouble(lowerUpper[1]);
 
@@ -212,12 +224,12 @@ public class SVMScale
             if (reader.read() == 'x') {
                 reader.readLine();
                 String line = reader.readLine();
-                String[] s = line.split(SPLIT);
+                String[] s = line.split(SVMProblem.SPLITTER);
                 xLower = Double.parseDouble(s[0]);
                 xUpper = Double.parseDouble(s[1]);
 
                 while ((line = reader.readLine()) != null) {
-                    String[] values = line.split(SPLIT);
+                    String[] values = line.split(SVMProblem.SPLITTER);
                     int index = Integer.parseInt(values[0]);
                     double min = Double.parseDouble(values[1]);
                     double max = Double.parseDouble(values[2]);
@@ -262,13 +274,17 @@ public class SVMScale
 
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] values = line.split(SPLIT);
+                String[] values = line.trim().split(SVMProblem.SPLITTER);
                 double target = Double.parseDouble(values[0]);
                 writer.print(getTarget(target) + " ");
 
-                for (int id = 1; id <= values.length - 2; id += 2) {
-                    int index = Integer.parseInt(values[id]);
-                    double value = Double.parseDouble(values[id + 1]);
+                for (int i = 1; i < values.length; i++) {
+                    if (values[i].trim().isEmpty())
+                        continue;
+
+                    int index = Integer.parseInt(values[i]);
+                    double value = Double.parseDouble(values[i + 1]);
+                    i++;
 
                     if (featureMin[index] == featureMax[index])
                         continue;
@@ -357,7 +373,7 @@ public class SVMScale
      * @param outFile       data file after scaling.
      * @param restoreFile   parameter generated previously
      */
-    public void scale(String dataFile, String saveParamFile, String outFile, String restoreFile)
+    private void scale(String dataFile, String saveParamFile, String outFile, String restoreFile)
     {
         if (!(xUpper > xLower) || (y_scaling && !(yUpper > yLower))) {
             throw new IllegalArgumentException("Inconsistent lower/upper specification");
@@ -367,13 +383,17 @@ public class SVMScale
             throw new IllegalArgumentException("Cannot use -r and -s simultaneously");
         }
 
+//        SVMProblem problem = new SVMProblem(Paths.get(dataFile));
+
         /* assumption: min index of attributes is 1 */
         /* pass 1: find out max index of attributes */
         maxIndex = 0;
-
         if (restoreFile != null) {
             updateMaxIndexFromRangeFile(restoreFile);
         }
+
+//        maxIndex = problem.getMaxIndex();
+//        this.numNonzeros = problem.size();
         updateMaxIndex(dataFile);
         try {
             featureMax = new double[maxIndex + 1];
@@ -389,6 +409,31 @@ public class SVMScale
         }
 
         updateLimit(dataFile);
+//        double[] y = problem.getY();
+//        for (double v : y) {
+//            yMax = Math.max(yMax, v);
+//            yMin = Math.min(yMin, v);
+//        }
+
+//        SVMNode[][] x = problem.getX();
+//        for (SVMNode[] nodes : x) {
+//            int nextIndex = 1;
+//            for (SVMNode node : nodes) {
+//                int index = node.getIndex();
+//                double value = node.getValue();
+//                for (int j = nextIndex; j < index; j++) {
+//                    featureMin[j] = Math.min(featureMin[j], 0);
+//                    featureMax[j] = Math.max(featureMax[j], 0);
+//                }
+//                featureMin[index] = Math.min(featureMin[index], value);
+//                featureMax[index] = Math.max(featureMax[index], value);
+//                nextIndex = index + 1;
+//            }
+//            for (int j = nextIndex; j <= maxIndex; j++) {
+//                featureMin[j] = Math.min(featureMin[j], 0);
+//                featureMax[j] = Math.max(featureMax[j], 0);
+//            }
+//        }
 
         /* pass 2.5: save/restore feature_min/feature_max */
         if (restoreFile != null) {
@@ -401,6 +446,25 @@ public class SVMScale
 
         /* pass 3: scale */
         scale(dataFile, outFile);
+//        try (PrintWriter writer = new PrintWriter(outFile)) {
+//            for (int i = 0; i < y.length; i++) {
+//                writer.print(y[i] + " ");
+//                SVMNode[] nodes = x[i];
+//
+//                for (SVMNode node : nodes) {
+//                    int index = node.getIndex();
+//                    if (featureMin[index] == featureMax[index])
+//                        continue;
+//
+//                    double value = getValue(index, node.value);
+//                    writer.print(index + ":" + value + " ");
+//                }
+//                writer.println();
+//            }
+//        } catch (FileNotFoundException e) {
+//            e.printStackTrace();
+//        }
+
         if (new_num_nonzeros > numNonzeros)
             System.err.print("WARNING: original #nonzeros " + numNonzeros + "\n"
                     + "         new      #nonzeros " + new_num_nonzeros + "\n"
