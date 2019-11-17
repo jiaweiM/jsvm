@@ -117,9 +117,9 @@ public class GridSearch
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, IOException
     {
-        SVM.rand.setSeed(987654321);
+//        SVM.rand.setSeed(987654321);
         SVMParameter parameter = new SVMParameter();
-        GridSearch gridSearch = new GridSearch("D:\\data\\datasets\\train.1.scale", parameter);
+        GridSearch gridSearch = new GridSearch("Z:\\MaoJiawei\\o-glycan\\liuluyao\\A-24-raw\\train\\train.csv.scale", parameter);
         gridSearch.grid();
     }
 

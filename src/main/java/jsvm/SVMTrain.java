@@ -1,5 +1,8 @@
 package jsvm;
 
+import com.beust.jcommander.Parameter;
+import com.beust.jcommander.ParametersDelegate;
+
 import java.io.IOException;
 import java.nio.file.Paths;
 
@@ -17,14 +20,25 @@ public class SVMTrain
 {
     private static final ISVMPrint NO_PRINT = s -> { };
 
-    private SVMParameter parameter;
+    @ParametersDelegate
+    private SVMParameter parameter = new SVMParameter();
     private SVMProblem problem;
     private SVMModel model;
+
+    @Parameter(description = "input traing dataset file", required = true)
     private String inputFileName;
+
+    @Parameter(names = "-o", description = "output model file")
     private String modelFileName;
-    private String errorMsg;
     private boolean crossValidation;
-    private int nrFold;
+
+    @Parameter(names = "-q", description = "quiet mode (no outputs)")
+    private boolean quietMode;
+
+    @Parameter(names = "-v", description = "n-fold cross validation mode")
+    private int nrFold = 0;
+
+    public SVMTrain() { }
 
     public SVMTrain(String inputFileName)
     {
@@ -75,6 +89,19 @@ public class SVMTrain
      */
     public Pair<Double, Double> train() throws IOException
     {
+        if (quietMode) {
+            SVM.setPrintFunc(NO_PRINT);
+        }
+        if (nrFold > 0) {
+            crossValidation = true;
+            if (nrFold < 2) {
+                throw new IllegalArgumentException("n-fold cross validation: n must >= 2");
+            }
+        }
+        if (modelFileName == null) {
+            modelFileName = inputFileName + ".model";
+        }
+
         this.problem = new SVMProblem(Paths.get(inputFileName));
         if (parameter.gamma == 0 && problem.getMaxIndex() > 0) {
             parameter.gamma = 1.0 / problem.getMaxIndex();
@@ -92,7 +119,7 @@ public class SVMTrain
             }
         }
 
-        errorMsg = SVM.checkParameter(problem, parameter);
+        String errorMsg = SVM.checkParameter(problem, parameter);
         if (errorMsg != null) {
             System.err.print("ERROR: " + errorMsg + "\n");
             System.exit(1);
@@ -172,10 +199,10 @@ public class SVMTrain
                     parameter.setP(atof(args[i]));
                     break;
                 case 'h':
-                    parameter.setShrinking(Integer.parseInt(args[i]));
+                    parameter.setShrinking(Boolean.parseBoolean(args[i]));
                     break;
                 case 'b':
-                    parameter.setProbability(Integer.parseInt(args[i]));
+                    parameter.setProbability(Boolean.parseBoolean(args[i]));
                     break;
                 case 'q':
                     printFunc = NO_PRINT;
@@ -287,6 +314,7 @@ public class SVMTrain
         return (d);
     }
 
+
     private static void exitWithHelp()
     {
         System.out.print(
@@ -312,8 +340,8 @@ public class SVMTrain
                         + "-p epsilon : set the epsilon in loss function of epsilon-SVR (default 0.1)\n"
                         + "-m cachesize : set cache memory size in MB (default 100)\n"
                         + "-e epsilon : set tolerance of termination criterion (default 0.001)\n"
-                        + "-h shrinking : whether to use the shrinking heuristics, 0 or 1 (default 1)\n"
-                        + "-b probability_estimates : whether to train a SVC or SVR model for probability estimates, 0 or 1 (default 0)\n"
+                        + "-h shrinking : whether to use the shrinking heuristics, false or true (default true)\n"
+                        + "-b probability_estimates : whether to train a SVC or SVR model for probability estimates, false or true (default false)\n"
                         + "-wi weight : set the parameter C of class i to weight*C, for C-SVC (default 1)\n"
                         + "-v n : n-fold cross validation mode\n"
                         + "-q : quiet mode (no outputs)\n"

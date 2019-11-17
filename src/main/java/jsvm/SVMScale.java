@@ -1,33 +1,53 @@
 package jsvm;
 
-import java.io.*;
+import com.beust.jcommander.JCommander;
+import com.beust.jcommander.Parameter;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Formatter;
 
 /**
  * This is a tool for scaling input data file.
  *
  * @author JiaweiMao
- * @version 1.0.0
+ * @version 1.1.0
  * @since 28 Oct 2019, 1:24 PM
  */
 public class SVMScale
 {
-    /**
-     * x scaling lower limit (default -1)
-     */
+    @Parameter(names = "-l", description = "x scaling lower limit")
     private double xLower = -1.0;
-    /**
-     * x scaling upper limit (default +1)
-     */
+
+    @Parameter(names = "-u", description = "x scaling upper limit")
     private double xUpper = 1.0;
-    /**
-     * y scaling limits (default: no y scaling)
-     */
+
+    @Parameter(names = "-yl", description = "y scaling lower limit, provide it if do y scaling")
     private double yLower;
+
+    @Parameter(names = "-yu", description = "y scaling upper limit, provide it if do y scaling")
     private double yUpper;
+
+    @Parameter(names = "-y", description = "do y scaling")
     private boolean y_scaling = false;
+
+    @Parameter(description = "data file", required = true)
+    private String dataFile;
+
+    @Parameter(names = "-o", description = "Output scaled data file")
+    private String outFile;
+
+    @Parameter(names = "-s", description = "output scaling parameters path")
+    private String saveParameterFile;
+
+    @Parameter(names = "-r", description = "restore scaling parameters file")
+    private String restoreParameterFile;
+
     private double[] featureMax;
     private double[] featureMin;
     /**
@@ -42,19 +62,7 @@ public class SVMScale
      */
     private long new_num_nonzeros = 0;
 
-    private static void exit_with_help()
-    {
-        System.out.print(
-                "Usage: SVMScale [options] data_filename\n"
-                        + "options:\n"
-                        + "-l lower : x scaling lower limit (default -1)\n"
-                        + "-u upper : x scaling upper limit (default +1)\n"
-                        + "-y y_lower y_upper : y scaling limits (default: no y scaling)\n"
-                        + "-s save_filename : save scaling parameters to save_filename\n"
-                        + "-r restore_filename : restore scaling parameters from restore_filename\n"
-        );
-        System.exit(1);
-    }
+    public SVMScale() { }
 
     /**
      * @return max index in the dataset.
@@ -106,12 +114,10 @@ public class SVMScale
 
     /**
      * find the max index and number of points in the dataset.
-     *
-     * @param file dataset file.
      */
-    private void updateMaxIndex(String file)
+    private void updateMaxIndex()
     {
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(dataFile))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] values = line.trim().split(SVMProblem.SPLITTER);
@@ -121,7 +127,8 @@ public class SVMScale
                         continue;
                     }
                     int index = Integer.parseInt(values[i]);
-                    maxIndex = Math.max(maxIndex, index);
+                    if (index > maxIndex)
+                        maxIndex = index;
                     numNonzeros++;
                     i++;
                 }
@@ -133,13 +140,11 @@ public class SVMScale
 
     /**
      * update max index
-     *
-     * @param file the parameter file generate previously.
      */
-    private void updateMaxIndexFromRangeFile(String file)
+    private void updateMaxIndexFromRangeFile()
     {
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
-            if (reader.read() == 'y') {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(restoreParameterFile))) {
+            if (reader.read() == 'y') { // scaling y
                 reader.readLine(); //y
                 reader.readLine(); // yLower, yUpper
                 reader.readLine(); // yMin, yMax
@@ -151,16 +156,17 @@ public class SVMScale
             while ((line = reader.readLine()) != null) {
                 String[] values = line.split(SVMProblem.SPLITTER);
                 int index = Integer.parseInt(values[0]);
-                this.maxIndex = Math.max(maxIndex, index);
+                if (index > maxIndex)
+                    maxIndex = index;
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private void updateLimit(String file)
+    private void updateLimit()
     {
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(dataFile))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 String[] values = line.trim().split(SVMProblem.SPLITTER);
@@ -198,12 +204,10 @@ public class SVMScale
 
     /**
      * update data range.
-     *
-     * @param file parameter file generate previously.
      */
-    public void updateLimitRestore(String file)
+    public void updateLimitRestore()
     {
-        try (BufferedReader reader = Files.newBufferedReader(Paths.get(file))) {
+        try (BufferedReader reader = Files.newBufferedReader(Paths.get(restoreParameterFile))) {
             reader.mark(2);
             if (reader.read() == 'y') {
                 reader.readLine(); // skip '\n' after 'y'
@@ -244,10 +248,10 @@ public class SVMScale
         }
     }
 
-    private void writeRangeFile(String out)
+    private void writeRangeFile()
     {
         Formatter formatter = new Formatter(new StringBuilder());
-        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(out))) {
+        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(saveParameterFile))) {
 
             if (y_scaling) {
                 formatter.format("y\n");
@@ -265,6 +269,54 @@ public class SVMScale
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void scale()
+    {
+        if (!(xUpper > xLower) || (y_scaling && !(yUpper > yLower))) {
+            throw new IllegalArgumentException("Inconsistent lower/upper specification");
+        }
+
+        if (restoreParameterFile != null && saveParameterFile != null) {
+            throw new IllegalArgumentException("Cannot use -r and -s simultaneously");
+        }
+
+        /* assumption: min index of attributes is 1 */
+        /* pass 1: find out max index of attributes */
+        maxIndex = 0;
+        if (restoreParameterFile != null) {
+            updateMaxIndexFromRangeFile();
+        }
+
+        updateMaxIndex();
+        try {
+            featureMax = new double[maxIndex + 1];
+            featureMin = new double[maxIndex + 1];
+        } catch (OutOfMemoryError e) {
+            System.err.println("can't allocate enough memory");
+            System.exit(1);
+        }
+
+        Arrays.fill(featureMax, -Double.MAX_VALUE);
+        Arrays.fill(featureMin, Double.MAX_VALUE);
+        updateLimit();
+
+        /* pass 2.5: save/restore feature_min/feature_max */
+        if (restoreParameterFile != null) {
+            updateLimitRestore();
+        }
+
+        if (saveParameterFile != null) {
+            writeRangeFile();
+        }
+
+        /* pass 3: scale */
+        scale(dataFile, outFile);
+
+        if (new_num_nonzeros > numNonzeros)
+            System.err.print("WARNING: original #nonzeros " + numNonzeros + "\n"
+                    + "         new      #nonzeros " + new_num_nonzeros + "\n"
+                    + "Use -l 0 if many original feature values are zeros\n");
     }
 
     private void scale(String file, String targetFile)
@@ -375,6 +427,11 @@ public class SVMScale
      */
     private void scale(String dataFile, String saveParamFile, String outFile, String restoreFile)
     {
+        this.dataFile = dataFile;
+        this.saveParameterFile = saveParamFile;
+        this.outFile = outFile;
+        this.restoreParameterFile = restoreFile;
+
         if (!(xUpper > xLower) || (y_scaling && !(yUpper > yLower))) {
             throw new IllegalArgumentException("Inconsistent lower/upper specification");
         }
@@ -383,18 +440,14 @@ public class SVMScale
             throw new IllegalArgumentException("Cannot use -r and -s simultaneously");
         }
 
-//        SVMProblem problem = new SVMProblem(Paths.get(dataFile));
-
         /* assumption: min index of attributes is 1 */
         /* pass 1: find out max index of attributes */
         maxIndex = 0;
         if (restoreFile != null) {
-            updateMaxIndexFromRangeFile(restoreFile);
+            updateMaxIndexFromRangeFile();
         }
 
-//        maxIndex = problem.getMaxIndex();
-//        this.numNonzeros = problem.size();
-        updateMaxIndex(dataFile);
+        updateMaxIndex();
         try {
             featureMax = new double[maxIndex + 1];
             featureMin = new double[maxIndex + 1];
@@ -408,62 +461,19 @@ public class SVMScale
             featureMin[i] = Double.MAX_VALUE;
         }
 
-        updateLimit(dataFile);
-//        double[] y = problem.getY();
-//        for (double v : y) {
-//            yMax = Math.max(yMax, v);
-//            yMin = Math.min(yMin, v);
-//        }
-
-//        SVMNode[][] x = problem.getX();
-//        for (SVMNode[] nodes : x) {
-//            int nextIndex = 1;
-//            for (SVMNode node : nodes) {
-//                int index = node.getIndex();
-//                double value = node.getValue();
-//                for (int j = nextIndex; j < index; j++) {
-//                    featureMin[j] = Math.min(featureMin[j], 0);
-//                    featureMax[j] = Math.max(featureMax[j], 0);
-//                }
-//                featureMin[index] = Math.min(featureMin[index], value);
-//                featureMax[index] = Math.max(featureMax[index], value);
-//                nextIndex = index + 1;
-//            }
-//            for (int j = nextIndex; j <= maxIndex; j++) {
-//                featureMin[j] = Math.min(featureMin[j], 0);
-//                featureMax[j] = Math.max(featureMax[j], 0);
-//            }
-//        }
+        updateLimit();
 
         /* pass 2.5: save/restore feature_min/feature_max */
         if (restoreFile != null) {
-            updateLimitRestore(restoreFile);
+            updateLimitRestore();
         }
 
         if (saveParamFile != null) {
-            writeRangeFile(saveParamFile);
+            writeRangeFile();
         }
 
         /* pass 3: scale */
         scale(dataFile, outFile);
-//        try (PrintWriter writer = new PrintWriter(outFile)) {
-//            for (int i = 0; i < y.length; i++) {
-//                writer.print(y[i] + " ");
-//                SVMNode[] nodes = x[i];
-//
-//                for (SVMNode node : nodes) {
-//                    int index = node.getIndex();
-//                    if (featureMin[index] == featureMax[index])
-//                        continue;
-//
-//                    double value = getValue(index, node.value);
-//                    writer.print(index + ":" + value + " ");
-//                }
-//                writer.println();
-//            }
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        }
 
         if (new_num_nonzeros > numNonzeros)
             System.err.print("WARNING: original #nonzeros " + numNonzeros + "\n"
@@ -471,56 +481,16 @@ public class SVMScale
                     + "Use -l 0 if many original feature values are zeros\n");
     }
 
-    private static void run(String[] argv)
-    {
-        SVMScale svmScale = new SVMScale();
-        int i;
-        String saveParamFile = null;
-        String restoreFile = null;
-        String dataFile;
-        String outDataFile = null;
-
-        for (i = 0; i < argv.length; i++) {
-            if (argv[i].charAt(0) != '-') break;
-            ++i;
-            switch (argv[i - 1].charAt(1)) {
-                case 'l':
-                    svmScale.setXLower(Double.parseDouble(argv[i]));
-                    break;
-                case 'u':
-                    svmScale.setXUpper(Double.parseDouble(argv[i]));
-                    break;
-                case 'y':
-                    svmScale.setYLower(Double.parseDouble(argv[i]));
-                    ++i;
-                    svmScale.setYUpper(Double.parseDouble(argv[i]));
-                    svmScale.y_scaling = true;
-                    break;
-                case 's':
-                    saveParamFile = argv[i];
-                    break;
-                case 'r':
-                    restoreFile = argv[i];
-                    break;
-                case 'o':
-                    outDataFile = argv[i];
-                    break;
-                default:
-                    System.err.println("unknown option");
-                    exit_with_help();
-            }
-        }
-
-        if (argv.length != i + 1)
-            exit_with_help();
-
-        dataFile = argv[i];
-
-        svmScale.scale(dataFile, saveParamFile, outDataFile, restoreFile);
-    }
-
     public static void main(String[] argv)
     {
-        run(argv);
+        SVMScale scale = new SVMScale();
+        JCommander commander = JCommander.newBuilder().addObject(scale).build();
+        commander.setProgramName("SVMScale");
+        try {
+            commander.parse(argv);
+            scale.scale();
+        } catch (Exception e) {
+            commander.usage();
+        }
     }
 }

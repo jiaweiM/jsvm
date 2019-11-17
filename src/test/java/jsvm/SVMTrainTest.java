@@ -1,26 +1,58 @@
 package jsvm;
 
-import org.testng.annotations.Test;
+
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 /**
  * @author JiaweiMao
  * @version 1.0.0
  * @since 28 Oct 2019, 10:56 PM
  */
-public class SVMTrainTest
+class SVMTrainTest
 {
     private final String data1 = "D:\\data\\datasets\\train.1";
     private final String test1 = "D:\\data\\datasets\\test.1";
     private final String data2 = "D:\\data\\datasets\\train.2";
     private final String data3 = "D:\\data\\datasets\\train.3";
+    private final String data4 = "D:\\data\\datasets\\svmguide4";
+    private final String test4 = "D:\\data\\datasets\\svmguide4.t";
 
     @Test
-    public void testTrain1() throws IOException
+    void testTrain1() throws IOException
     {
         testDirect(data1, test1);
         testScaleFirst(data1, test1);
+    }
+
+
+    @Test
+    void scaleGlycan()
+    {
+        SVMScale scale = new SVMScale();
+        scale.setXLower(0);
+        scale.scaleTrain("Z:\\MaoJiawei\\o-glycan\\liuluyao\\A-24-raw\\train\\train.csv");
+    }
+
+    @Test
+    void test4() throws IOException, ExecutionException, InterruptedException
+    {
+        SVMScale scale = new SVMScale();
+        scale.scaleTrain(data4);
+
+        SVMParameter parameter = new SVMParameter();
+//        GridSearch search = new GridSearch(data4 + ".scale", parameter);
+//        search.grid();
+        parameter.setC(2048);
+        parameter.setGamma(0.03125);
+
+        scale.scaleTest(test4, data4 + ".range");
+//        scale.scaleTrain(test4);
+        SVMTrain train = new SVMTrain(data4 + ".scale", parameter);
+        train.train();
+        SVMPredict.predict(test4 + ".scale", data4 + ".scale.model");
     }
 
     private void testDirect(String file, String test) throws IOException
@@ -42,7 +74,7 @@ public class SVMTrainTest
     }
 
     @Test
-    public void testScale() throws IOException
+    void testScale() throws IOException
     {
         String trainData = "D:\\data\\datasets\\train.1";
         String testData = "D:\\data\\datasets\\test.1";
@@ -68,7 +100,7 @@ public class SVMTrainTest
     }
 
     @Test
-    public void test2() throws IOException
+    void test2() throws IOException
     {
         String trainData = "D:\\data\\datasets\\train.2";
         String trainscale = "D:\\data\\datasets\\train.2.scale";
@@ -84,7 +116,7 @@ public class SVMTrainTest
     }
 
     @Test
-    public void test3() throws IOException
+    void test3() throws IOException
     {
         String trainData = "D:\\data\\datasets\\train.3";
         String trainDataScale = "D:\\data\\datasets\\train.3.scale";
@@ -112,7 +144,7 @@ public class SVMTrainTest
     }
 
     @Test
-    public void testCross() throws IOException
+    void testCross() throws IOException
     {
         String data = "D:\\data\\datasets\\train.3.scale";
         SVMParameter parameter = new SVMParameter();

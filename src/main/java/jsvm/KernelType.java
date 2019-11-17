@@ -18,7 +18,7 @@ public enum KernelType
      */
     POLY("polynomial"),
     /**
-     * redial basis function: exp(-gamma*|u-v|^2)
+     * radial basis function: exp(-gamma*|u-v|^2)
      */
     RBF("rbf"),
     /**

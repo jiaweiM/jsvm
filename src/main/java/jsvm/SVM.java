@@ -450,7 +450,7 @@ class Solver
     }
 
     void Solve(int l, QMatrix Q, double[] p_, byte[] y_,
-            double[] alpha_, double Cp, double Cn, double eps, SolutionInfo si, int shrinking)
+            double[] alpha_, double Cp, double Cn, double eps, SolutionInfo si, boolean shrinking)
     {
         this.l = l;
         this.Q = Q;
@@ -512,7 +512,7 @@ class Solver
 
             if (--counter == 0) {
                 counter = Math.min(l, 1000);
-                if (shrinking != 0) do_shrinking();
+                if (shrinking) do_shrinking();
                 SVM.info(".");
             }
 
@@ -879,7 +879,7 @@ final class Solver_NU extends Solver
 
     void Solve(int l, QMatrix Q, double[] p, byte[] y,
             double[] alpha, double Cp, double Cn, double eps,
-            SolutionInfo si, int shrinking)
+            SolutionInfo si, boolean shrinking)
     {
         this.si = si;
         super.Solve(l, Q, p, y, alpha, Cp, Cn, eps, si, shrinking);
@@ -1730,7 +1730,7 @@ public class SVM
                     dec_values[perm[j]] = -1;
             else {
                 SVMParameter subparam = (SVMParameter) param.clone();
-                subparam.probability = 0;
+                subparam.probability = false;
                 subparam.C = 1.0;
                 subparam.nrWeight = 2;
                 subparam.weightLabel = new int[2];
@@ -1761,7 +1761,7 @@ public class SVM
         double mae = 0;
 
         SVMParameter newparam = (SVMParameter) param.clone();
-        newparam.probability = 0;
+        newparam.probability = false;
         crossValidation(prob, newparam, nr_fold, ymv);
         for (i = 0; i < prob.l; i++) {
             ymv[i] = prob.y[i] - ymv[i];
@@ -1863,10 +1863,6 @@ public class SVM
 
     /**
      * Train a model of given dataset and parameter.
-     *
-     * @param prob
-     * @param param
-     * @return
      */
     public static SVMModel train(SVMProblem prob, SVMParameter param)
     {
@@ -1884,7 +1880,7 @@ public class SVM
             model.probB = null;
             model.sv_coef = new double[1][];
 
-            if (param.probability == 1 &&
+            if (param.probability &&
                     (param.svmType == EPSILON_SVR ||
                             param.svmType == NU_SVR)) {
                 model.probA = new double[1];
@@ -1959,7 +1955,7 @@ public class SVM
             decision_function[] f = new decision_function[nr_class * (nr_class - 1) / 2];
 
             double[] probA = null, probB = null;
-            if (param.probability == 1) {
+            if (param.probability) {
                 probA = new double[nr_class * (nr_class - 1) / 2];
                 probB = new double[nr_class * (nr_class - 1) / 2];
             }
@@ -1983,7 +1979,7 @@ public class SVM
                         sub_prob.y[ci + k] = -1;
                     }
 
-                    if (param.probability == 1) {
+                    if (param.probability) {
                         double[] probAB = new double[2];
                         svm_binary_svc_probability(sub_prob, param, weighted_C[i], weighted_C[j], probAB);
                         probA[p] = probAB[0];
@@ -2012,7 +2008,7 @@ public class SVM
             for (i = 0; i < nr_class * (nr_class - 1) / 2; i++)
                 model.rho[i] = f[i].rho;
 
-            if (param.probability == 1) {
+            if (param.probability) {
                 model.probA = new double[nr_class * (nr_class - 1) / 2];
                 model.probB = new double[nr_class * (nr_class - 1) / 2];
                 for (i = 0; i < nr_class * (nr_class - 1) / 2; i++) {
@@ -2187,7 +2183,7 @@ public class SVM
                 ++k;
             }
             SVMModel submodel = train(subprob, param);
-            if (param.probability == 1 &&
+            if (param.probability &&
                     (param.svmType == C_SVC ||
                             param.svmType == NU_SVC)) {
                 double[] prob_estimates = new double[submodel.nrClass];
@@ -2553,22 +2549,9 @@ public class SVM
     {
         // svm_type
         SVMType svm_type = param.svmType;
-        if (svm_type != C_SVC &&
-                svm_type != NU_SVC &&
-                svm_type != ONE_CLASS &&
-                svm_type != EPSILON_SVR &&
-                svm_type != NU_SVR)
-            return "unknown svm type";
 
         // kernel_type, degree
         KernelType kernel_type = param.kernelType;
-        if (kernel_type != LINEAR &&
-                kernel_type != POLY &&
-                kernel_type != RBF &&
-                kernel_type != SIGMOID &&
-                kernel_type != PRECOMPUTED)
-            return "unknown kernel type";
-
         if ((kernel_type == POLY ||
                 kernel_type == RBF ||
                 kernel_type == SIGMOID) &&
@@ -2602,15 +2585,7 @@ public class SVM
             if (param.p < 0)
                 return "p < 0";
 
-        if (param.shrinking != 0 &&
-                param.shrinking != 1)
-            return "shrinking != 0 and shrinking != 1";
-
-        if (param.probability != 0 &&
-                param.probability != 1)
-            return "probability != 0 and probability != 1";
-
-        if (param.probability == 1 && svm_type == ONE_CLASS)
+        if (param.probability && svm_type == ONE_CLASS)
             return "one-class SVM probability output not supported yet";
 
         // check whether nu-svc is feasible

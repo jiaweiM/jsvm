@@ -1,5 +1,7 @@
 package jsvm;
 
+import com.beust.jcommander.Parameter;
+
 import java.util.Arrays;
 
 import static jsvm.KernelType.RBF;
@@ -12,44 +14,50 @@ import static jsvm.SVMType.C_SVC;
  */
 public class SVMParameter implements Cloneable, java.io.Serializable
 {
-    public SVMType svmType;
-    public KernelType kernelType;
-    public int degree;    // for poly
-    public double gamma;    // for poly/rbf/sigmoid
-    public double coef0;    // for poly/sigmoid
+    @Parameter(names = "-s", description = "type of SVM")
+    SVMType svmType = C_SVC;
+
+    @Parameter(names = "-t", description = "type of kernel function")
+    KernelType kernelType = RBF;
+
+    @Parameter(names = "-d", description = "degree in kernel function")
+    int degree = 3;    // for poly
+
+    @Parameter(names = "-g", description = "gamma in kernel function (default 1/num_features)")
+    double gamma = 0;    // for poly/rbf/sigmoid
+
+    @Parameter(names = "-r", description = "coef0 in kernel function")
+    double coef0 = 0;    // for poly/sigmoid
 
     // these are for training only
-    /**
-     * cache memory size in MB (default 100)
-     */
-    public double cacheSize; // in MB
+    @Parameter(names = "-m", description = "cache memory size in MB")
+    double cacheSize = 100; // in MB
     /**
      * tolerance of termination criterion (default 0.001)
      */
-    public double eps;    // stopping criteria
-    /**
-     * cost for C_SVC, EPSILON_SVR and NU_SVR
-     */
-    public double C;
-    public int nrWeight;        // for C_SVC
-    public int[] weightLabel;    // for C_SVC
-    public double[] weight;        // for C_SVC
-    /**
-     * nu of nu-SVC, one-class SVM, and nu-SVR (default 0.5)
-     */
-    public double nu;
-    /**
-     * the epsilon in loss function of epsilon-SVR (default 0.1)
-     */
-    public double p;    // for EPSILON_SVR
-    /**
-     * whether to use the shrinking heuristics, 0 or 1 (default 1)
-     */
-    public int shrinking;    // use the shrinking heuristics
+    @Parameter(names = "-e", description = "tolerance of termination criterion")
+    double eps = 1e-3;    // stopping criteria
+
+    @Parameter(names = "-c", description = "parameter C of C-SVC, epsilon-SVR, and nu-SVR")
+    double C = 1;
+
+    int nrWeight;        // for C_SVC
+    int[] weightLabel;    // for C_SVC
+    double[] weight;        // for C_SVC
+
+    @Parameter(names = "-n", description = "nu of nu-SVC, one-class SVM, and nu-SVR")
+    double nu = 0.5;
+
+    @Parameter(names = "-p", description = "epsilon in loss function of epsilon-SVR")
+    double p = 0.1;    // for EPSILON_SVR
+
+    @Parameter(names = "-h", description = "whether to use the shrinking heuristics")
+    boolean shrinking = true;
     /**
      * whether to train a SVC or SVR model for probability estimates, 0 or 1 (default 0)
      */
-    public int probability;
+    @Parameter(names = "-b", description = "whether to train a SVC or SVR model for probability estimates")
+    boolean probability = false;
 
     public SVMParameter(SVMParameter parameter)
     {
@@ -72,18 +80,6 @@ public class SVMParameter implements Cloneable, java.io.Serializable
 
     public SVMParameter()
     {
-        svmType = C_SVC;
-        kernelType = RBF;
-        degree = 3; // degree in kernel function
-        gamma = 0;    // 1/num_features
-        coef0 = 0; // coef0
-        nu = 0.5; // nu of nu-SVC, one-class SVM, and nu-SVR (default 0.5)
-        cacheSize = 100; // cache memory size in MB (default 100)
-        C = 1; // C of C-SVC,epsilon-SVR,nu-SVR
-        eps = 1e-3; // tolerance of termination criterion (default 0.001)
-        p = 0.1; // the epsilon in loss function of epsilon-SVR (default 0.1)
-        shrinking = 1; // whether to use the shrinking heuristics, 0 or 1 (default 1)
-        probability = 0; // whether to train a SVC or SVR model for probability estimates, 0 or 1 (default 0)
         nrWeight = 0; // set the parameter C of class i to weight*C, for C-SVC (default 1)
         weightLabel = new int[0]; //
         weight = new double[0]; // n-fold cross validation mode
@@ -208,22 +204,22 @@ public class SVMParameter implements Cloneable, java.io.Serializable
         this.p = p;
     }
 
-    public int getShrinking()
+    public boolean isShrinking()
     {
         return shrinking;
     }
 
-    public void setShrinking(int shrinking)
+    public void setShrinking(boolean shrinking)
     {
         this.shrinking = shrinking;
     }
 
-    public int getProbability()
+    public boolean isProbability()
     {
         return probability;
     }
 
-    public void setProbability(int probability)
+    public void setProbability(boolean probability)
     {
         this.probability = probability;
     }
