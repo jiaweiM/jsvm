@@ -129,7 +129,7 @@ public class SVMTrain
             return doCrossValidation();
         } else {
             model = SVM.train(problem, parameter);
-            SVM.saveModel(modelFileName, model);
+            model.saveModel(modelFileName);
             return Pair.create(0., 0.);
         }
     }

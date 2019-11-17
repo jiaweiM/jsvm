@@ -1,8 +1,6 @@
 package jsvm;
 
-import java.io.*;
 import java.util.Random;
-import java.util.StringTokenizer;
 
 import static jsvm.KernelType.*;
 import static jsvm.SVMType.*;
@@ -814,7 +812,7 @@ class Solver
             }
         }
 
-        if (unshrink == false && Gmax1 + Gmax2 <= eps * 10) {
+        if (!unshrink && Gmax1 + Gmax2 <= eps * 10) {
             unshrink = true;
             reconstruct_gradient();
             active_size = l;
@@ -1021,7 +1019,7 @@ final class Solver_NU extends Solver
             }
         }
 
-        if (unshrink == false && Math.max(Gmax1 + Gmax2, Gmax3 + Gmax4) <= eps * 10) {
+        if (!unshrink && Math.max(Gmax1 + Gmax2, Gmax3 + Gmax4) <= eps * 10) {
             unshrink = true;
             reconstruct_gradient();
             active_size = l;
@@ -1216,6 +1214,7 @@ class SVR_Q extends Kernel
             sign[i] = sign[j];
             sign[j] = tmp;
         } while (false);
+
         do {
             int tmp = index[i];
             index[i] = index[j];
@@ -1450,8 +1449,6 @@ public class SVM
         double[] alpha;
         double rho;
     }
-
-    ;
 
     static decision_function svm_train_one(SVMProblem prob, SVMParameter param, double Cp, double Cn)
     {
@@ -2312,239 +2309,6 @@ public class SVM
             return predict(model, x);
     }
 
-    public static void saveModel(String modelFileName, SVMModel model) throws IOException
-    {
-        DataOutputStream fp = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(modelFileName)));
-
-        SVMParameter param = model.param;
-
-        fp.writeBytes("svm_type " + param.svmType.getName() + "\n");
-        fp.writeBytes("kernel_type " + param.kernelType.getName() + "\n");
-
-        if (param.kernelType == POLY)
-            fp.writeBytes("degree " + param.degree + "\n");
-
-        if (param.kernelType == POLY ||
-                param.kernelType == RBF ||
-                param.kernelType == SIGMOID)
-            fp.writeBytes("gamma " + param.gamma + "\n");
-
-        if (param.kernelType == POLY ||
-                param.kernelType == SIGMOID)
-            fp.writeBytes("coef0 " + param.coef0 + "\n");
-
-        int nr_class = model.nrClass;
-        int l = model.l;
-        fp.writeBytes("nr_class " + nr_class + "\n");
-        fp.writeBytes("total_sv " + l + "\n");
-
-        {
-            fp.writeBytes("rho");
-            for (int i = 0; i < nr_class * (nr_class - 1) / 2; i++)
-                fp.writeBytes(" " + model.rho[i]);
-            fp.writeBytes("\n");
-        }
-
-        if (model.label != null) {
-            fp.writeBytes("label");
-            for (int i = 0; i < nr_class; i++)
-                fp.writeBytes(" " + model.label[i]);
-            fp.writeBytes("\n");
-        }
-
-        if (model.probA != null) // regression has probA only
-        {
-            fp.writeBytes("probA");
-            for (int i = 0; i < nr_class * (nr_class - 1) / 2; i++)
-                fp.writeBytes(" " + model.probA[i]);
-            fp.writeBytes("\n");
-        }
-        if (model.probB != null) {
-            fp.writeBytes("probB");
-            for (int i = 0; i < nr_class * (nr_class - 1) / 2; i++)
-                fp.writeBytes(" " + model.probB[i]);
-            fp.writeBytes("\n");
-        }
-
-        if (model.nSV != null) {
-            fp.writeBytes("nr_sv");
-            for (int i = 0; i < nr_class; i++)
-                fp.writeBytes(" " + model.nSV[i]);
-            fp.writeBytes("\n");
-        }
-
-        fp.writeBytes("SV\n");
-        double[][] sv_coef = model.sv_coef;
-        SVMNode[][] SV = model.SV;
-
-        for (int i = 0; i < l; i++) {
-            for (int j = 0; j < nr_class - 1; j++)
-                fp.writeBytes(sv_coef[j][i] + " ");
-
-            SVMNode[] p = SV[i];
-            if (param.kernelType == PRECOMPUTED)
-                fp.writeBytes("0:" + (int) (p[0].value));
-            else
-                for (SVMNode svmNode : p)
-                    fp.writeBytes(svmNode.index + ":" + svmNode.value + " ");
-            fp.writeBytes("\n");
-        }
-
-        fp.close();
-    }
-
-    private static double atof(String s)
-    {
-        return Double.parseDouble(s);
-    }
-
-    private static int atoi(String s)
-    {
-        return Integer.parseInt(s);
-    }
-
-    private static boolean read_model_header(BufferedReader fp, SVMModel model)
-    {
-        SVMParameter param = new SVMParameter();
-        model.param = param;
-        // parameters for training only won't be assigned, but arrays are assigned as null for safety
-        param.nrWeight = 0;
-        param.weightLabel = null;
-        param.weight = null;
-
-        try {
-            while (true) {
-                String cmd = fp.readLine();
-                String arg = cmd.substring(cmd.indexOf(' ') + 1);
-
-                if (cmd.startsWith("svm_type")) {
-                    boolean found = false;
-                    for (SVMType value : SVMType.values()) {
-                        if (arg.contains(value.getName())) {
-                            param.svmType = value;
-                            found = true;
-                            break;
-                        }
-                    }
-
-                    if (!found) {
-                        System.err.print("unknown svm type.\n");
-                        return false;
-                    }
-                } else if (cmd.startsWith("kernel_type")) {
-                    boolean found = false;
-                    for (KernelType value : KernelType.values()) {
-                        if (arg.contains(value.getName())) {
-                            param.kernelType = value;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        System.err.print("unknown kernel function.\n");
-                        return false;
-                    }
-                } else if (cmd.startsWith("degree"))
-                    param.degree = atoi(arg);
-                else if (cmd.startsWith("gamma"))
-                    param.gamma = atof(arg);
-                else if (cmd.startsWith("coef0"))
-                    param.coef0 = atof(arg);
-                else if (cmd.startsWith("nr_class"))
-                    model.nrClass = atoi(arg);
-                else if (cmd.startsWith("total_sv"))
-                    model.l = atoi(arg);
-                else if (cmd.startsWith("rho")) {
-                    int n = model.nrClass * (model.nrClass - 1) / 2;
-                    model.rho = new double[n];
-                    StringTokenizer st = new StringTokenizer(arg);
-                    for (int i = 0; i < n; i++)
-                        model.rho[i] = atof(st.nextToken());
-                } else if (cmd.startsWith("label")) {
-                    int n = model.nrClass;
-                    model.label = new int[n];
-                    StringTokenizer st = new StringTokenizer(arg);
-                    for (int i = 0; i < n; i++)
-                        model.label[i] = atoi(st.nextToken());
-                } else if (cmd.startsWith("probA")) {
-                    int n = model.nrClass * (model.nrClass - 1) / 2;
-                    model.probA = new double[n];
-                    StringTokenizer st = new StringTokenizer(arg);
-                    for (int i = 0; i < n; i++)
-                        model.probA[i] = atof(st.nextToken());
-                } else if (cmd.startsWith("probB")) {
-                    int n = model.nrClass * (model.nrClass - 1) / 2;
-                    model.probB = new double[n];
-                    StringTokenizer st = new StringTokenizer(arg);
-                    for (int i = 0; i < n; i++)
-                        model.probB[i] = atof(st.nextToken());
-                } else if (cmd.startsWith("nr_sv")) {
-                    int n = model.nrClass;
-                    model.nSV = new int[n];
-                    StringTokenizer st = new StringTokenizer(arg);
-                    for (int i = 0; i < n; i++)
-                        model.nSV[i] = atoi(st.nextToken());
-                } else if (cmd.startsWith("SV")) {
-                    break;
-                } else {
-                    System.err.print("unknown text in model file: [" + cmd + "]\n");
-                    return false;
-                }
-            }
-        } catch (Exception e) {
-            return false;
-        }
-        return true;
-    }
-
-    public static SVMModel loadModel(String model_file_name) throws IOException
-    {
-        return loadModel(new BufferedReader(new FileReader(model_file_name)));
-    }
-
-    public static SVMModel loadModel(BufferedReader fp) throws IOException
-    {
-        // read parameters
-
-        SVMModel model = new SVMModel();
-        model.rho = null;
-        model.probA = null;
-        model.probB = null;
-        model.label = null;
-        model.nSV = null;
-
-        // read header
-        if (!read_model_header(fp, model)) {
-            System.err.print("ERROR: failed to read model\n");
-            return null;
-        }
-
-        // read sv_coef and SV
-
-        int m = model.nrClass - 1;
-        int l = model.l;
-        model.sv_coef = new double[m][l];
-        model.SV = new SVMNode[l][];
-
-        for (int i = 0; i < l; i++) {
-            String line = fp.readLine();
-            StringTokenizer st = new StringTokenizer(line, " \t\n\r\f:");
-
-            for (int k = 0; k < m; k++)
-                model.sv_coef[k][i] = atof(st.nextToken());
-            int n = st.countTokens() / 2;
-            model.SV[i] = new SVMNode[n];
-            for (int j = 0; j < n; j++) {
-                model.SV[i][j] = new SVMNode();
-                model.SV[i][j].index = atoi(st.nextToken());
-                model.SV[i][j].value = atof(st.nextToken());
-            }
-        }
-
-        fp.close();
-        return model;
-    }
-
     public static String checkParameter(SVMProblem prob, SVMParameter param)
     {
         // svm_type
@@ -2634,17 +2398,6 @@ public class SVM
         }
 
         return null;
-    }
-
-    public static int checkProbabilityModel(SVMModel model)
-    {
-        if (((model.param.svmType == C_SVC || model.param.svmType == NU_SVC) &&
-                model.probA != null && model.probB != null) ||
-                ((model.param.svmType == EPSILON_SVR || model.param.svmType == NU_SVR) &&
-                        model.probA != null))
-            return 1;
-        else
-            return 0;
     }
 
     public static void setPrintFunc(ISVMPrint print_func)

@@ -69,19 +69,13 @@ public class SVMPredict
         double error = 0;
         double sump = 0, sumt = 0, sumpp = 0, sumtt = 0, sumpt = 0;
 
-        SVMModel model = SVM.loadModel(modelFile);
-        if (model == null) {
-            System.err.print("can't open model file " + modelFile + "\n");
-            System.exit(1);
-        }
-
+        SVMModel model = new SVMModel(modelFile);
         if (predictProbability) {
-            if (SVM.checkProbabilityModel(model) == 0) {
-                System.err.print("Model does not support probabiliy estimates\n");
-                System.exit(1);
+            if (!model.isSupportProbability()) {
+                throw new IllegalArgumentException("Model does not support probability estimates");
             }
         } else {
-            if (SVM.checkProbabilityModel(model) != 0) {
+            if (model.isSupportProbability()) {
                 info("Model supports probability estimates, but disabled in prediction.\n");
             }
         }

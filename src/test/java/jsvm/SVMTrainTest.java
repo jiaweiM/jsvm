@@ -20,13 +20,23 @@ class SVMTrainTest
     private final String data4 = "D:\\data\\datasets\\svmguide4";
     private final String test4 = "D:\\data\\datasets\\svmguide4.t";
 
+
     @Test
     void testTrain1() throws IOException
     {
         testDirect(data1, test1);
+    }
+
+    @Test
+    void testScaleTrain1() throws IOException
+    {
         testScaleFirst(data1, test1);
     }
 
+    @Test
+    void testTrain1Grid(){
+
+    }
 
     @Test
     void scaleGlycan()
