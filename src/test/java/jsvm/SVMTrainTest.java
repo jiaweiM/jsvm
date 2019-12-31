@@ -34,7 +34,8 @@ class SVMTrainTest
     }
 
     @Test
-    void testTrain1Grid(){
+    void testTrain1Grid()
+    {
 
     }
 
@@ -81,6 +82,22 @@ class SVMTrainTest
         train.train();
 
         SVMPredict.predict(test + ".scale", file + ".scale.model");
+    }
+
+    @Test
+    void testProbability() throws IOException
+    {
+        SVMScale svmScale = new SVMScale();
+        svmScale.scaleTrain(data1);
+        svmScale.scaleTest(test1, data1 + ".range");
+
+        SVMParameter parameter = new SVMParameter();
+        parameter.setProbability(true);
+
+        SVMTrain train = new SVMTrain(data1 + ".scale", parameter);
+        train.train();
+
+        SVMPredict.predict(test1 + ".scale", data1 + ".scale.model", true);
     }
 
     @Test

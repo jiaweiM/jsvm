@@ -8,13 +8,15 @@ import java.util.concurrent.*;
 import java.util.function.Function;
 
 /**
+ * This class is used to find best parameters for SVM
+ *
  * @author JiaweiMao
  * @version 1.0.0
  * @since 29 Oct 2019, 1:16 PM
  */
 public class GridSearch
 {
-    private class MatchTask implements Callable<double[]>
+    private static class MatchTask implements Callable<double[]>
     {
         private String file;
         private SVMParameter parameter;
